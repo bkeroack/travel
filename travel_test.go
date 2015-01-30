@@ -3,24 +3,16 @@ package travel
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"testing"
 )
 
-const (
-	rt_file = "test/root.json"
-)
+var test_response []byte
 
-func load_roottree(p string) (map[string]interface{}, error) {
-	b, err := ioutil.ReadFile(p)
-	if err != nil {
-		return map[string]interface{}{}, err
-	}
-
+func load_roottree(d []byte) (map[string]interface{}, error) {
 	var rt interface{}
-	err = json.Unmarshal(b, &rt)
+	err := json.Unmarshal(d, &rt)
 	if err != nil {
 		return map[string]interface{}{}, err
 	}
@@ -42,9 +34,8 @@ func new_request(verb string, url string) *http.Request {
 }
 
 type test_response_writer struct {
-	hh      http.Header
-	status  int
-	content []byte
+	hh     http.Header
+	status int
 }
 
 func (tw test_response_writer) Header() http.Header {
@@ -52,7 +43,7 @@ func (tw test_response_writer) Header() http.Header {
 }
 
 func (tw test_response_writer) Write(b []byte) (int, error) {
-	tw.content = b
+	test_response = b
 	return len(b), nil
 }
 
@@ -67,9 +58,9 @@ func new_responsewriter() test_response_writer {
 	}
 }
 
-func unmarshal_response(rw test_response_writer) (map[string]interface{}, error) {
+func unmarshal_response() (map[string]interface{}, error) {
 	var d interface{}
-	err := json.Unmarshal(rw.content, &d)
+	err := json.Unmarshal(test_response, &d)
 	if err != nil {
 		return map[string]interface{}{}, err
 	}
@@ -94,12 +85,33 @@ func test_handler(w http.ResponseWriter, r *http.Request, c interface{}, v strin
 }
 
 func test_error_handler(w http.ResponseWriter, r *http.Request, e string) {
+	log.Printf("test_error_handler called\n")
 	test_handler(w, r, "error", e)
+}
+
+func test_request(r *Router, v string, p string) map[string]interface{} {
+	req := new_request(v, p)
+	rw := new_responsewriter()
+	r.ServeHTTP(rw, req)
+	resp, err := unmarshal_response()
+	if err != nil {
+		return map[string]interface{}{}
+	}
+	return resp
 }
 
 func TestSimpleTraversal(t *testing.T) {
 	rtf := func() (map[string]interface{}, error) {
-		return load_roottree(rt_file)
+		rt := `
+		{
+			"foo": {
+				"bar": {
+					"baz": {},
+					"%handler": "bar"
+				}
+			}
+		}`
+		return load_roottree([]byte(rt))
 	}
 
 	var bar_handler TravelHandler
@@ -111,20 +123,26 @@ func TestSimpleTraversal(t *testing.T) {
 		test_handler(w, r, c, "baz")
 	}
 
+	def_handler := func(w http.ResponseWriter, r *http.Request, c interface{}) {
+		test_handler(w, r, c, "default")
+	}
+
 	hm := map[string]TravelHandler{
 		"bar": bar_handler,
 		"baz": baz_handler,
+		"":    def_handler,
 	}
 
 	r := NewRouter(rtf, hm, test_error_handler)
-	req := new_request("GET", "/foo/bar")
-	rw := new_responsewriter()
-	r.ServeHTTP(rw, req)
-	resp, err := unmarshal_response(rw)
-	if err != nil {
-		t.Errorf("Error unmarshalling response: %v\n", err)
-	}
+	resp := test_request(r, "GET", "/foo/bar")
 	if resp["resp"] != "bar" {
 		t.Errorf("Incorrect response: %v\n", resp)
+		return
+	}
+
+	resp = test_request(r, "GET", "/foo/bar/baz")
+	if resp["resp"] != "default" {
+		t.Errorf("Incorrect response: %v\n", resp)
+		return
 	}
 }

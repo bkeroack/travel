@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	h_token = "{handler}"
+	h_token = "%handler"
 )
 
 type TravelHandler func(http.ResponseWriter, *http.Request, interface{})
@@ -53,11 +53,29 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		switch co := cur_obj.(type) {
 		case map[string]interface{}:
 			if cur_obj, ok = co[t]; ok {
-				if i == (len(tokens) - 1) {
-					if h, ok = r.hm[h_token]; ok {
-						h(w, req, cur_obj)
-						return
-					} else {
+				if i == len(tokens)-1 {
+					switch co2 := cur_obj.(type) {
+					case map[string]interface{}:
+						if hn, ok := co2[h_token]; ok {
+							hns := hn.(string)
+							if h, ok = r.hm[hns]; ok {
+								h(w, req, cur_obj)
+								return
+							} else {
+								r.eh(w, req, fmt.Sprintf("handler not found: %v\n", hns))
+								return
+							}
+
+						} else {
+							if h, ok = r.hm[""]; ok {
+								h(w, req, cur_obj)
+								return
+							} else {
+								r.eh(w, req, "successful traversal but no matching handler found")
+								return
+							}
+						}
+					default:
 						if h, ok = r.hm[""]; ok {
 							h(w, req, cur_obj)
 							return

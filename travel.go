@@ -11,14 +11,21 @@ const (
 )
 
 type TravelHandler func(http.ResponseWriter, *http.Request, interface{})
-type TravelErrorHandler func(http.ResponseWriter, *http.Request, string)
+type TravelErrorHandler func(http.ResponseWriter, *http.Request, error)
 type RootTreeFunc func() (map[string]interface{}, error)
 type HandlerMap map[string]TravelHandler
 
+type Context struct {
+	RootTree   map[string]interface{}
+	CurrentObj interface{}
+	tokens     []string
+}
+
 type Router struct {
-	rtf RootTreeFunc
-	hm  HandlerMap
-	eh  TravelErrorHandler
+	rtf    RootTreeFunc
+	hm     HandlerMap
+	eh     TravelErrorHandler
+	tokens []string
 }
 
 func NewRouter(rtf RootTreeFunc, hm HandlerMap, eh TravelErrorHandler) *Router {
@@ -29,25 +36,15 @@ func NewRouter(rtf RootTreeFunc, hm HandlerMap, eh TravelErrorHandler) *Router {
 	}
 }
 
-func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (*Context) Refresh() {
 
-	if req.URL.Path[0] == '/' {
-		req.URL.Path = strings.TrimLeft(req.URL.Path, "/")
-	}
-	if req.URL.Path[len(req.URL.Path)-1] == '/' {
-		req.URL.Path = strings.TrimRight(req.URL.Path, "/")
-	}
-	tokens := strings.Split(req.URL.Path, "/")
+}
 
+func doTraversal(rt map[string]interface{}, tokens []string) (h string, co interface{}, err error) {
 	var cur_obj interface{}
 	var ok bool
-	var h TravelHandler
 
-	cur_obj, err := r.rtf()
-	if err != nil {
-		r.eh(w, req, "error loading root tree")
-		return
-	}
+	cur_obj = rt
 	for i := range tokens {
 		t := tokens[i]
 		switch co := cur_obj.(type) {
@@ -58,45 +55,52 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 					case map[string]interface{}:
 						if hn, ok := co2[h_token]; ok {
 							hns := hn.(string)
-							if h, ok = r.hm[hns]; ok {
-								h(w, req, cur_obj)
-								return
-							} else {
-								r.eh(w, req, fmt.Sprintf("handler not found: %v\n", hns))
-								return
-							}
+							return hns, cur_obj, nil
 
 						} else {
-							if h, ok = r.hm[""]; ok {
-								h(w, req, cur_obj)
-								return
-							} else {
-								r.eh(w, req, "successful traversal but no matching handler found")
-								return
-							}
+							return "", cur_obj, nil
 						}
 					default:
-						if h, ok = r.hm[""]; ok {
-							h(w, req, cur_obj)
-							return
-						} else {
-							r.eh(w, req, "successful traversal but no matching handler found")
-							return
-						}
+						return "", cur_obj, nil
 					}
 				} // next iteration
 			} else {
-				http.NotFound(w, req)
-				return
+				return "", cur_obj, fmt.Errorf("404 Not Found")
 			}
 		default:
-			if h, ok = r.hm[t]; ok {
-				h(w, req, cur_obj)
-				return
-			} else {
-				r.eh(w, req, fmt.Sprintf("handler not found: %v\n", t))
-				return
-			}
+			return t, cur_obj, nil
 		}
+	}
+	return "", cur_obj, fmt.Errorf("traversal never completed")
+}
+
+func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+
+	if req.URL.Path[0] == '/' {
+		req.URL.Path = strings.TrimLeft(req.URL.Path, "/")
+	}
+	if req.URL.Path[len(req.URL.Path)-1] == '/' {
+		req.URL.Path = strings.TrimRight(req.URL.Path, "/")
+	}
+	r.tokens = strings.Split(req.URL.Path, "/")
+
+	rt, err := r.rtf()
+	if err != nil {
+		r.eh(w, req, fmt.Errorf("error getting root_tree"))
+	}
+	hn, co, err := doTraversal(rt, r.tokens)
+	if err != nil {
+		r.eh(w, req, err)
+		return
+	}
+	if h, ok := r.hm[hn]; ok {
+		c := Context{
+			RootTree:   rt,
+			CurrentObj: co,
+			tokens:     r.tokens,
+		}
+		h(w, req, c)
+	} else {
+		r.eh(w, req, fmt.Errorf("handler not found"))
 	}
 }

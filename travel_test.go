@@ -72,10 +72,10 @@ func unmarshal_response() (map[string]interface{}, error) {
 	}
 }
 
-func test_handler(w http.ResponseWriter, r *http.Request, c interface{}, v string) {
+func test_handler(w http.ResponseWriter, r *http.Request, c *Context, v string) {
 	resp := map[string]interface{}{
 		"resp":    v,
-		"context": c,
+		"context": c.CurrentObj,
 	}
 	b, err := json.Marshal(resp)
 	if err != nil {
@@ -84,9 +84,9 @@ func test_handler(w http.ResponseWriter, r *http.Request, c interface{}, v strin
 	w.Write(b)
 }
 
-func test_error_handler(w http.ResponseWriter, r *http.Request, e string) {
+func test_error_handler(w http.ResponseWriter, r *http.Request, err error) {
 	log.Printf("test_error_handler called\n")
-	test_handler(w, r, "error", e)
+	test_handler(w, r, &Context{}, err.Error())
 }
 
 func test_request(r *Router, v string, p string) map[string]interface{} {
@@ -115,15 +115,15 @@ func TestSimpleTraversal(t *testing.T) {
 	}
 
 	var bar_handler TravelHandler
-	bar_handler = func(w http.ResponseWriter, r *http.Request, c interface{}) {
+	bar_handler = func(w http.ResponseWriter, r *http.Request, c *Context) {
 		test_handler(w, r, c, "bar")
 	}
 
-	baz_handler := func(w http.ResponseWriter, r *http.Request, c interface{}) {
+	baz_handler := func(w http.ResponseWriter, r *http.Request, c *Context) {
 		test_handler(w, r, c, "baz")
 	}
 
-	def_handler := func(w http.ResponseWriter, r *http.Request, c interface{}) {
+	def_handler := func(w http.ResponseWriter, r *http.Request, c *Context) {
 		test_handler(w, r, c, "default")
 	}
 

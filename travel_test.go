@@ -133,7 +133,7 @@ func TestSimpleTraversal(t *testing.T) {
 		"":    def_handler,
 	}
 
-	r := NewRouter(rtf, hm, test_error_handler)
+	r := NewRouter(rtf, hm, test_error_handler, nil)
 	resp := test_request(r, "GET", "/foo/bar")
 	if resp["resp"] != "bar" {
 		t.Errorf("Incorrect response: %v\n", resp)

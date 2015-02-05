@@ -1,7 +1,6 @@
 package travel
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 )
@@ -15,18 +14,24 @@ type TravelErrorHandler func(http.ResponseWriter, *http.Request, error)
 type RootTreeFunc func() (map[string]interface{}, error)
 type HandlerMap map[string]TravelHandler
 
+type TravelOptions struct {
+	SubpathMaxLength map[string]int
+}
+
 type Context struct {
 	RootTree   map[string]interface{}
 	CurrentObj interface{}
 	tokens     []string
+	options    *TravelOptions
 	Subpath    []string
 }
 
 type Router struct {
-	rtf    RootTreeFunc
-	hm     HandlerMap
-	eh     TravelErrorHandler
-	tokens []string
+	rtf     RootTreeFunc
+	hm      HandlerMap
+	eh      TravelErrorHandler
+	tokens  []string
+	options *TravelOptions
 }
 
 type TraversalResult struct {
@@ -35,24 +40,34 @@ type TraversalResult struct {
 	sp []string
 }
 
-type TravelOptions struct {
-	SubpathMaxLength map[string]int
-}
-
-func NewRouter(rtf RootTreeFunc, hm HandlerMap, eh TravelErrorHandler) *Router {
+func NewRouter(rtf RootTreeFunc, hm HandlerMap, eh TravelErrorHandler, o *TravelOptions) *Router {
+	if o == nil {
+		o = &TravelOptions{
+			SubpathMaxLength: map[string]int{},
+		}
+	}
 	return &Router{
-		rtf: rtf,
-		hm:  hm,
-		eh:  eh,
+		rtf:     rtf,
+		hm:      hm,
+		eh:      eh,
+		options: o,
 	}
 }
 
-func (c *Context) Refresh(rtf RootTreeFunc) error {
+func (c *Context) Refresh(rtf RootTreeFunc, m string) error {
 	rt, err := rtf()
 	if err != nil {
-		return err
+		return RootTreeError(err)
 	}
-	tr, err := doTraversal(rt, c.tokens)
+
+	var spl int
+	if v, ok := c.options.SubpathMaxLength[m]; ok {
+		spl = v
+	} else {
+		spl = 0
+	}
+
+	tr, err := doTraversal(rt, c.tokens, spl)
 	if err != nil {
 		return err
 	}
@@ -62,7 +77,7 @@ func (c *Context) Refresh(rtf RootTreeFunc) error {
 	return nil
 }
 
-func doTraversal(rt map[string]interface{}, tokens []string) (TraversalResult, error) {
+func doTraversal(rt map[string]interface{}, tokens []string, spl int) (TraversalResult, error) {
 	var cur_obj interface{}
 	var ok bool
 
@@ -99,7 +114,19 @@ func doTraversal(rt map[string]interface{}, tokens []string) (TraversalResult, e
 					}
 				} // next iteration
 			} else {
-				return TraversalResult{}, fmt.Errorf("404 Not Found")
+				// not found
+				sp := tokens[i : len(tokens)-1]
+				if len(sp) <= spl {
+					return TraversalResult{
+						h:  t,
+						co: co,
+						sp: sp,
+					}, nil
+				} else if len(sp) > spl {
+					return TraversalResult{}, IllegalSubpath(tokens)
+				} else {
+					return TraversalResult{}, NotFoundError(tokens)
+				}
 			}
 		default:
 			return TraversalResult{
@@ -109,7 +136,7 @@ func doTraversal(rt map[string]interface{}, tokens []string) (TraversalResult, e
 			}, nil
 		}
 	}
-	return TraversalResult{}, fmt.Errorf("traversal never completed")
+	return TraversalResult{}, InternalError("traversal never completed")
 }
 
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -124,9 +151,17 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	rt, err := r.rtf()
 	if err != nil {
-		r.eh(w, req, fmt.Errorf("error getting root_tree"))
+		r.eh(w, req, RootTreeError(err))
 	}
-	tr, err := doTraversal(rt, r.tokens)
+
+	var spl int
+	if v, ok := r.options.SubpathMaxLength[req.Method]; ok {
+		spl = v
+	} else {
+		spl = 0
+	}
+
+	tr, err := doTraversal(rt, r.tokens, spl)
 	if err != nil {
 		r.eh(w, req, err)
 		return
@@ -140,6 +175,6 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 		h(w, req, &c)
 	} else {
-		r.eh(w, req, fmt.Errorf("handler not found"))
+		r.eh(w, req, UnknownHandlerError(r.tokens))
 	}
 }

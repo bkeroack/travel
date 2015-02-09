@@ -4,56 +4,78 @@ import (
 	"fmt"
 )
 
-type TraversalNotFoundError []string
+type TraversalNotFoundError struct {
+	Path []string
+	Code int
+}
 type TraversalRootTreeError struct {
-	err error
+	Err  error
+	Code int
 }
 type TraversalInternalError struct {
-	m string
+	Msg  string
+	Code int
 }
-type TraversalIllegalSubpath []string
-type TraversalUnknownHandlerError []string
+type TraversalIllegalSubpath struct {
+	Path []string
+	Code int
+}
+type TraversalUnknownHandlerError struct {
+	Path []string
+	Code int
+}
 
 func (t TraversalNotFoundError) Error() string {
-	return fmt.Sprintf("404 Not Found: %v", t)
+	return fmt.Sprintf("404 Not Found: %v", t.Path)
 }
 
 func (t TraversalUnknownHandlerError) Error() string {
-	return fmt.Sprintf("Handler not found for route: %v\n", t)
+	return fmt.Sprintf("Handler not found for route: %v\n", t.Path)
 }
 
 func (t TraversalRootTreeError) Error() string {
-	return t.err.Error()
+	return t.Err.Error()
 }
 
 func (t TraversalInternalError) Error() string {
-	return fmt.Sprintf("Internal traversal error (bug?): %v", t.m)
+	return fmt.Sprintf("Internal traversal error (bug?): %v", t.Msg)
 }
 
 func (t TraversalIllegalSubpath) Error() string {
-	return fmt.Sprintf("Subpath exceeded allowed length: %v", t)
+	return fmt.Sprintf("Subpath exceeded allowed length: %v", t.Path)
 }
 
 func NotFoundError(r []string) TraversalNotFoundError {
-	return r
+	return TraversalNotFoundError{
+		Path: r,
+		Code: 404,
+	}
 }
 
 func UnknownHandlerError(r []string) TraversalUnknownHandlerError {
-	return r
+	return TraversalUnknownHandlerError{
+		Path: r,
+		Code: 401,
+	}
 }
 
 func RootTreeError(err error) TraversalRootTreeError {
 	return TraversalRootTreeError{
-		err: err,
+		Err:  err,
+		Code: 500,
 	}
 }
 
 func InternalError(m string) TraversalInternalError {
 	return TraversalInternalError{
-		m: m,
+		Msg:  m,
+		Code: 500,
 	}
 }
 
 func IllegalSubpath(r []string) TraversalIllegalSubpath {
-	return r
+	return TraversalIllegalSubpath{
+		Path: r,
+		Code: 401,
+	}
 }

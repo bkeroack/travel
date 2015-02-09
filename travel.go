@@ -1,6 +1,7 @@
 package travel
 
 import (
+	"log"
 	"net/http"
 	"strings"
 )
@@ -140,12 +141,14 @@ func doTraversal(rt map[string]interface{}, tokens []string, spl int) (Traversal
 }
 
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-
+	log.Printf("got path: %v\n", req.URL.Path)
 	if req.URL.Path[0] == '/' {
 		req.URL.Path = strings.TrimLeft(req.URL.Path, "/")
 	}
-	if req.URL.Path[len(req.URL.Path)-1] == '/' {
-		req.URL.Path = strings.TrimRight(req.URL.Path, "/")
+	if len(req.URL.Path) > 0 {
+		if req.URL.Path[len(req.URL.Path)-1] == '/' {
+			req.URL.Path = strings.TrimRight(req.URL.Path, "/")
+		}
 	}
 	r.tokens = strings.Split(req.URL.Path, "/")
 
@@ -162,6 +165,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	tr, err := doTraversal(rt, r.tokens, spl)
+	log.Printf("got handler name: %v\n", tr.h)
 	if err != nil {
 		r.eh(w, req, err)
 		return

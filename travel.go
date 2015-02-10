@@ -11,12 +11,13 @@ const (
 )
 
 type TravelHandler func(http.ResponseWriter, *http.Request, *Context)
-type TravelErrorHandler func(http.ResponseWriter, *http.Request, error)
+type TravelErrorHandler func(http.ResponseWriter, *http.Request, TraversalError)
 type RootTreeFunc func() (map[string]interface{}, error)
 type HandlerMap map[string]TravelHandler
 
 type TravelOptions struct {
 	SubpathMaxLength map[string]int
+	StrictTraversal  bool
 }
 
 type Context struct {
@@ -68,7 +69,7 @@ func (c *Context) Refresh(rtf RootTreeFunc, m string) error {
 		spl = 0
 	}
 
-	tr, err := doTraversal(rt, c.tokens, spl)
+	tr, err := doTraversal(rt, c.tokens, spl, c.options.StrictTraversal)
 	if err != nil {
 		return err
 	}
@@ -78,9 +79,24 @@ func (c *Context) Refresh(rtf RootTreeFunc, m string) error {
 	return nil
 }
 
-func doTraversal(rt map[string]interface{}, tokens []string, spl int) (TraversalResult, error) {
+func doTraversal(rt map[string]interface{}, tokens []string, spl int, strict bool) (TraversalResult, error) {
 	var cur_obj interface{}
 	var ok bool
+
+	get_hn := func(i int, l bool) string {
+		if l {
+			if strict {
+				return ""
+			} else {
+				return tokens[i]
+			}
+		}
+		if strict || len(tokens) == 1 {
+			return tokens[i]
+		} else {
+			return tokens[i-1]
+		}
+	}
 
 	cur_obj = rt
 	for i := range tokens {
@@ -101,14 +117,14 @@ func doTraversal(rt map[string]interface{}, tokens []string, spl int) (Traversal
 
 						} else {
 							return TraversalResult{
-								h:  "",
+								h:  get_hn(i, true),
 								co: co2,
 								sp: []string{},
 							}, nil
 						}
 					default:
 						return TraversalResult{
-							h:  "",
+							h:  get_hn(i, true),
 							co: cur_obj,
 							sp: []string{},
 						}, nil
@@ -119,7 +135,7 @@ func doTraversal(rt map[string]interface{}, tokens []string, spl int) (Traversal
 				sp := tokens[i : len(tokens)-1]
 				if len(sp) <= spl {
 					return TraversalResult{
-						h:  t,
+						h:  get_hn(i, false),
 						co: co,
 						sp: sp,
 					}, nil
@@ -131,7 +147,7 @@ func doTraversal(rt map[string]interface{}, tokens []string, spl int) (Traversal
 			}
 		default:
 			return TraversalResult{
-				h:  t,
+				h:  get_hn(i, false),
 				co: cur_obj,
 				sp: tokens[i : len(tokens)-1],
 			}, nil
@@ -164,10 +180,13 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		spl = 0
 	}
 
-	tr, err := doTraversal(rt, r.tokens, spl)
+	tr, err := doTraversal(rt, r.tokens, spl, r.options.StrictTraversal)
 	log.Printf("got handler name: %v\n", tr.h)
 	if err != nil {
-		r.eh(w, req, err)
+		r.eh(w, req, TraversalInternalError{
+			msg:  err.Error(),
+			code: 500,
+		})
 		return
 	}
 	if h, ok := r.hm[tr.h]; ok {

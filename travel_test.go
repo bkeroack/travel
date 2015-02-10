@@ -84,7 +84,7 @@ func test_handler(w http.ResponseWriter, r *http.Request, c *Context, v string) 
 	w.Write(b)
 }
 
-func test_error_handler(w http.ResponseWriter, r *http.Request, err error) {
+func test_error_handler(w http.ResponseWriter, r *http.Request, err TraversalError) {
 	log.Printf("test_error_handler called\n")
 	test_handler(w, r, &Context{}, err.Error())
 }
@@ -133,7 +133,11 @@ func TestSimpleTraversal(t *testing.T) {
 		"":    def_handler,
 	}
 
-	r := NewRouter(rtf, hm, test_error_handler, nil)
+	o := TravelOptions{
+		StrictTraversal: true,
+	}
+
+	r := NewRouter(rtf, hm, test_error_handler, &o)
 	resp := test_request(r, "GET", "/foo/bar")
 	if resp["resp"] != "bar" {
 		t.Errorf("Incorrect response: %v\n", resp)
@@ -142,6 +146,59 @@ func TestSimpleTraversal(t *testing.T) {
 
 	resp = test_request(r, "GET", "/foo/bar/baz")
 	if resp["resp"] != "default" {
+		t.Errorf("Incorrect response: %v\n", resp)
+		return
+	}
+}
+
+func TestPermissiveTraversal(t *testing.T) {
+	rtf := func() (map[string]interface{}, error) {
+		rt := `
+		{
+			"accounts": {
+				"users": {
+					"mary": {
+						"%handler": "user"
+					}
+				}
+			}
+		}`
+		return load_roottree([]byte(rt))
+	}
+
+	accounts_handler := func(w http.ResponseWriter, r *http.Request, c *Context) {
+		test_handler(w, r, c, "accounts")
+	}
+
+	users_handler := func(w http.ResponseWriter, r *http.Request, c *Context) {
+		test_handler(w, r, c, "users")
+	}
+
+	user_handler := func(w http.ResponseWriter, r *http.Request, c *Context) {
+		test_handler(w, r, c, "user")
+	}
+
+	hm := map[string]TravelHandler{
+		"accounts": accounts_handler,
+		"users":    users_handler,
+		"user":     user_handler,
+	}
+
+	r := NewRouter(rtf, hm, test_error_handler, nil)
+	resp := test_request(r, "GET", "/accounts")
+	if resp["resp"] != "accounts" {
+		t.Errorf("Incorrect response: %v\n", resp)
+		return
+	}
+
+	resp = test_request(r, "GET", "/accounts/users")
+	if resp["resp"] != "users" {
+		t.Errorf("Incorrect response: %v\n", resp)
+		return
+	}
+
+	resp = test_request(r, "GET", "/accounts/users/mary")
+	if resp["resp"] != "user" {
 		t.Errorf("Incorrect response: %v\n", resp)
 		return
 	}

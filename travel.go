@@ -23,7 +23,7 @@ type TravelOptions struct {
 type Context struct {
 	RootTree   map[string]interface{}
 	CurrentObj interface{}
-	tokens     []string
+	Path       []string
 	options    *TravelOptions
 	Subpath    []string
 }
@@ -69,7 +69,7 @@ func (c *Context) Refresh(rtf RootTreeFunc, m string) error {
 		spl = 0
 	}
 
-	tr, err := doTraversal(rt, c.tokens, spl, c.options.StrictTraversal)
+	tr, err := doTraversal(rt, c.Path, spl, c.options.StrictTraversal)
 	if err != nil {
 		return err
 	}
@@ -77,6 +77,18 @@ func (c *Context) Refresh(rtf RootTreeFunc, m string) error {
 	c.RootTree = rt
 	c.Subpath = tr.sp
 	return nil
+}
+
+func (c *Context) WalkBack(n uint) map[string]interface{} {
+	if int(n) > len(c.Path) {
+		return map[string]interface{}{}
+	}
+	ti := len(c.Path) - int(n)
+	var co map[string]interface{}
+	for i := 0; i <= ti; i++ {
+		co = c.RootTree[c.Path[i]].(map[string]interface{})
+	}
+	return co
 }
 
 func doTraversal(rt map[string]interface{}, tokens []string, spl int, strict bool) (TraversalResult, error) {
@@ -193,7 +205,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		c := Context{
 			RootTree:   rt,
 			CurrentObj: tr.co,
-			tokens:     r.tokens,
+			Path:       r.tokens,
 			Subpath:    tr.sp,
 		}
 		h(w, req, &c)

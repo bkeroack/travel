@@ -21,10 +21,6 @@ type TraversalInternalError struct {
 	msg  string
 	code int
 }
-type TraversalIllegalSubpath struct {
-	path []string
-	code int
-}
 type TraversalUnknownHandlerError struct {
 	path []string
 	code int
@@ -62,14 +58,6 @@ func (t TraversalInternalError) Code() int {
 	return t.code
 }
 
-func (t TraversalIllegalSubpath) Error() string {
-	return fmt.Sprintf("Subpath exceeded allowed length: %v", t.path)
-}
-
-func (t TraversalIllegalSubpath) Code() int {
-	return t.code
-}
-
 func NotFoundError(r []string) TraversalError {
 	return TraversalNotFoundError{
 		path: r,
@@ -80,7 +68,7 @@ func NotFoundError(r []string) TraversalError {
 func UnknownHandlerError(r []string) TraversalUnknownHandlerError {
 	return TraversalUnknownHandlerError{
 		path: r,
-		code: 401,
+		code: 501,
 	}
 }
 
@@ -95,12 +83,5 @@ func InternalError(m string) TraversalInternalError {
 	return TraversalInternalError{
 		msg:  m,
 		code: 500,
-	}
-}
-
-func IllegalSubpath(r []string) TraversalIllegalSubpath {
-	return TraversalIllegalSubpath{
-		path: r,
-		code: 401,
 	}
 }

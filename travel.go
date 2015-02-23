@@ -79,16 +79,13 @@ func (c *Context) Refresh(rtf RootTreeFunc, m string) error {
 	return nil
 }
 
-func (c *Context) WalkBack(n uint) map[string]interface{} {
-	if int(n) > len(c.Path) {
-		return map[string]interface{}{}
+func (c *Context) WalkBack(n uint) (map[string]interface{}, error) {
+	new_path := c.Path[0 : len(c.Path)-int(n)]
+	tr, err := doTraversal(c.RootTree, new_path, 0, c.options.StrictTraversal)
+	if err != nil {
+		return map[string]interface{}{}, err
 	}
-	ti := len(c.Path) - int(n)
-	var co map[string]interface{}
-	for i := 0; i <= ti; i++ {
-		co = c.RootTree[c.Path[i]].(map[string]interface{})
-	}
-	return co
+	return tr.co.(map[string]interface{}), nil
 }
 
 func doTraversal(rt map[string]interface{}, tokens []string, spl int, strict bool) (TraversalResult, TraversalError) {
@@ -163,7 +160,6 @@ func doTraversal(rt map[string]interface{}, tokens []string, spl int, strict boo
 				}
 			}
 		default:
-			log.Printf("default")
 			if i == len(tokens)-1 {
 				return TraversalResult{
 					h:  "",
@@ -219,6 +215,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			CurrentObj: tr.co,
 			Path:       r.tokens,
 			Subpath:    tr.sp,
+			options:    r.options,
 		}
 		h(w, req, &c)
 	} else {

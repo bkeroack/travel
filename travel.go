@@ -81,6 +81,9 @@ func (c *Context) Refresh(rtf RootTreeFunc, m string) error {
 
 func (c *Context) WalkBack(n uint) (map[string]interface{}, error) {
 	new_path := c.Path[0 : len(c.Path)-int(n)]
+	if len(new_path) == 0 {
+		new_path = []string{""}
+	}
 	tr, err := doTraversal(c.RootTree, new_path, 0, c.options.StrictTraversal)
 	if err != nil {
 		return map[string]interface{}{}, err
@@ -142,8 +145,7 @@ func doTraversal(rt map[string]interface{}, tokens []string, spl int, strict boo
 			} else {
 				// not found
 				sp := tokens[i:len(tokens)]
-				log.Printf("len(sp): %v, spl: %v, i: %v, len(tokens): %v", len(sp), spl, i, len(tokens))
-				if len(sp) <= spl {
+				if len(sp) <= spl || len(tokens) == 1 {
 					var hn string
 					if len(sp) == len(tokens) {
 						hn = ""
@@ -175,11 +177,10 @@ func doTraversal(rt map[string]interface{}, tokens []string, spl int, strict boo
 			}
 		}
 	}
-	return TraversalResult{}, InternalError("traversal never completed")
+	return TraversalResult{}, InternalError("received empty path")
 }
 
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	log.Printf("got path: %v\n", req.URL.Path)
 	if req.URL.Path[0] == '/' {
 		req.URL.Path = strings.TrimLeft(req.URL.Path, "/")
 	}
@@ -204,11 +205,11 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	tr, terr := doTraversal(rt, r.tokens, spl, r.options.StrictTraversal)
-	log.Printf("got handler name: %v\n", tr.h)
 	if terr != nil {
 		r.eh(w, req, terr)
 		return
 	}
+	log.Printf("got handler name: %v\n", tr.h)
 	if h, ok := r.hm[tr.h]; ok {
 		c := Context{
 			RootTree:   rt,

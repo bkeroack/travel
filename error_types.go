@@ -2,6 +2,7 @@ package travel
 
 import (
 	"fmt"
+	"net/http"
 )
 
 type TraversalError interface {
@@ -61,27 +62,27 @@ func (t TraversalInternalError) Code() int {
 func NotFoundError(r []string) TraversalError {
 	return TraversalNotFoundError{
 		path: r,
-		code: 404,
+		code: http.StatusNotFound,
 	}
 }
 
 func UnknownHandlerError(r []string) TraversalUnknownHandlerError {
 	return TraversalUnknownHandlerError{
 		path: r,
-		code: 501,
+		code: http.StatusNotImplemented,
 	}
 }
 
 func RootTreeError(err error) TraversalRootTreeError {
 	return TraversalRootTreeError{
 		err:  err,
-		code: 500,
+		code: http.StatusInternalServerError,
 	}
 }
 
 func InternalError(m string) TraversalInternalError {
 	return TraversalInternalError{
 		msg:  m,
-		code: 500,
+		code: http.StatusInternalServerError,
 	}
 }

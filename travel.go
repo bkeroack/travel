@@ -15,19 +15,26 @@ type TravelErrorHandler func(http.ResponseWriter, *http.Request, TraversalError)
 type RootTreeFunc func() (map[string]interface{}, error)
 type HandlerMap map[string]TravelHandler
 
+// Options for Travel router
+// "Strict" means to follow Pyramid traversal semanics -- handler name can only be "" or the latest token in path when root_tree lookup
+// failed (everything beyond that is the subpath).
+// Non-strict (permissive) means that the handler name is always the latest token in the path (regardless if lookup fully succeeds).
+// In both instances the default behavior can be overridden by having an explicit handler name token within the root tree node.
 type TravelOptions struct {
-	SubpathMaxLength map[string]int
-	StrictTraversal  bool
+	SubpathMaxLength map[string]int // Map of method verb to subpath length limit for requests of that type
+	StrictTraversal  bool           // Obey Pyramid traversal semantics (do not enforce subpath limits, use handler names from path only)
 }
 
+// Request context passed to request handler
 type Context struct {
-	RootTree   map[string]interface{}
-	CurrentObj interface{}
-	Path       []string
-	options    *TravelOptions
-	Subpath    []string
+	RootTree   map[string]interface{} // Root tree as processed by this request (thread-local)
+	CurrentObj interface{}            // Current object from root tree
+	Path       []string               // tokenized URL path
+	options    *TravelOptions         // Options passed to router
+	Subpath    []string               // Tokenized subpath for this request
 }
 
+// Travel router
 type Router struct {
 	rtf     RootTreeFunc
 	hm      HandlerMap
@@ -36,12 +43,15 @@ type Router struct {
 	options *TravelOptions
 }
 
+// Result of running traversal algorithm
 type TraversalResult struct {
-	h  string
-	co interface{}
-	sp []string
+	h  string      // handler name
+	co interface{} // current object
+	sp []string    // tokenized subpath
 }
 
+// Create a new Travel router. Parameters: callback function to fetch root tree, map of handler names to functions,
+// default request error handler, options
 func NewRouter(rtf RootTreeFunc, hm HandlerMap, eh TravelErrorHandler, o *TravelOptions) *Router {
 	if o == nil {
 		o = &TravelOptions{
@@ -56,6 +66,7 @@ func NewRouter(rtf RootTreeFunc, hm HandlerMap, eh TravelErrorHandler, o *Travel
 	}
 }
 
+// Fetch the root tree, re-run traversal and update Context fields.
 func (c *Context) Refresh(rtf RootTreeFunc, m string) error {
 	rt, err := rtf()
 	if err != nil {
@@ -79,6 +90,7 @@ func (c *Context) Refresh(rtf RootTreeFunc, m string) error {
 	return nil
 }
 
+// Walk back n nodes in tokenized path, return root tree object at that node.
 func (c *Context) WalkBack(n uint) (map[string]interface{}, error) {
 	new_path := c.Path[0 : len(c.Path)-int(n)]
 	if len(new_path) == 0 {
@@ -95,18 +107,11 @@ func doTraversal(rt map[string]interface{}, tokens []string, spl int, strict boo
 	var cur_obj interface{}
 	var ok bool
 
-	get_hn := func(i int, l bool) string {
-		if l {
-			if strict {
-				return ""
-			} else {
-				return tokens[i]
-			}
-		}
-		if strict || len(tokens) == 1 {
-			return tokens[i]
+	get_hn := func(token string, found bool) string {
+		if (strict && found) || !strict {
+			return ""
 		} else {
-			return tokens[i-1]
+			return token
 		}
 	}
 
@@ -121,22 +126,21 @@ func doTraversal(rt map[string]interface{}, tokens []string, spl int, strict boo
 					case map[string]interface{}:
 						if hn, ok := co2[h_token]; ok {
 							hns := hn.(string)
-							return TraversalResult{
+							return TraversalResult{ // last token, token lookup success, cur_obj is map, explicit handler found
 								h:  hns,
 								co: co2,
 								sp: []string{},
 							}, nil
-
 						} else {
-							return TraversalResult{
-								h:  get_hn(i, true),
+							return TraversalResult{ // last token, token lookup success, cur_obj is map, no handler key
+								h:  get_hn(t, true),
 								co: co2,
 								sp: []string{},
 							}, nil
 						}
 					default:
-						return TraversalResult{
-							h:  get_hn(i, true),
+						return TraversalResult{ // last token, token lookup success, cur_obj is not a map
+							h:  get_hn(t, true),
 							co: cur_obj,
 							sp: []string{},
 						}, nil
@@ -146,31 +150,25 @@ func doTraversal(rt map[string]interface{}, tokens []string, spl int, strict boo
 				// not found
 				sp := tokens[i:len(tokens)]
 				if len(sp) <= spl || len(tokens) == 1 {
-					var hn string
-					if len(sp) == len(tokens) {
-						hn = ""
-					} else {
-						hn = get_hn(i, false)
-					}
-					return TraversalResult{
-						h:  hn,
+					return TraversalResult{ // token not found, subpath_limit not exceeded
+						h:  get_hn(t, false),
 						co: co,
 						sp: sp,
 					}, nil
 				} else {
-					return TraversalResult{}, NotFoundError(tokens)
+					return TraversalResult{}, NotFoundError(tokens) // token not found, subpath limit exceeded
 				}
 			}
 		default:
 			if i == len(tokens)-1 {
-				return TraversalResult{
+				return TraversalResult{ // last token, current object is not a map
 					h:  "",
 					co: cur_obj,
 					sp: []string{},
 				}, nil
 			} else {
-				return TraversalResult{
-					h:  get_hn(i, false),
+				return TraversalResult{ // tokens remaining but cur_obj is not a map so traversal cannot continue
+					h:  get_hn(t, false),
 					co: cur_obj,
 					sp: tokens[i : len(tokens)-1],
 				}, nil

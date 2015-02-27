@@ -137,7 +137,10 @@ func TestSimpleTraversal(t *testing.T) {
 		StrictTraversal: true,
 	}
 
-	r := NewRouter(rtf, hm, test_error_handler, &o)
+	r, err := NewRouter(rtf, hm, test_error_handler, &o)
+	if err != nil {
+		t.Errorf("NewRouter error: %v\n", err)
+	}
 	resp := test_request(r, "GET", "/foo/bar")
 	if resp["resp"] != "bar" {
 		t.Errorf("Incorrect response: %v\n", resp)
@@ -184,7 +187,10 @@ func TestPermissiveTraversal(t *testing.T) {
 		"user":     user_handler,
 	}
 
-	r := NewRouter(rtf, hm, test_error_handler, nil)
+	r, err := NewRouter(rtf, hm, test_error_handler, nil)
+	if err != nil {
+		t.Errorf("NewRouter error: %v\n", err)
+	}
 	resp := test_request(r, "GET", "/accounts")
 	if resp["resp"] != "accounts" {
 		t.Errorf("Incorrect response: %v\n", resp)

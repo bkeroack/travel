@@ -33,4 +33,4 @@ traversal, if the lookup fully succeeded (no missing key errors), the name of th
 the default handler. If the lookup failed at any point, the handler name would be the token that failed and any remainder of the URL would
 be passed to the handler as the "subpath" (see original traversal documentation linked above for more details).
 
-Travel provides several ways to modify these semantics. For details, see godoc documentation.
+Travel provides several ways to modify these semantics. For example, travel allows handler name overrides within the root tree object, limitations on subpath length and more. For details, see godoc documentation.

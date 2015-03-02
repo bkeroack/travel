@@ -16,28 +16,6 @@ type RootTreeFunc func() (map[string]interface{}, error)
 type HandlerMap map[string]TravelHandler
 
 // Options for Travel router
-//
-// "Strict" means to follow Pyramid traversal semantics -- handler name can only be "" (empty string) or the latest token in path when
-// root tree lookup failed (everything beyond that is the subpath). Note that this can be modified with handler name overrides in the
-// root tree object.
-//
-// Non-strict (permissive) means that the handler name is always the latest token in the path (regardless if lookup fully succeeds).
-//
-// Strict setting has no effect on the following options (they can be used to modify "strict" traversal as needed). Handler names
-// can always be overridden by embedding handler keys within the root tree ('%handler' key within the object, value must be a string).
-//
-// The optional DefaultHandler is used to execute a fallback handler when traversal succeeds but the handler name returned is not
-// found within the handler map. Otherwise a 501 Not Implemented error is returned.
-//
-// SubpathMaxLength is a map of method verb (all caps) to an integer representing the allowed number of subpath tokens. If the subpath
-// length is less than or equal to this limit, the request succeeds and the handler is executed per traversal semantics. If the subpath
-// exceeds this limit a 404 Not Found is returned.
-//
-// For example, if the request URL is '/foo/bar/baz' and traversal succeeds up to '/foo', a SubpathMaxLength of 2 for that
-// request verb would allow the request to succeed (the handler name would be 'bar' for strict traversal and the subpath would be 'bar/baz').
-// A SubpathMaxLength of 0 would cause the request to return 404 Not Found.
-// Traditional Pyramid Traversal has an unlimited subpath max length. That can be emulated by setting SubpathMaxLength[verb] to
-// UnlimitedSubpath.
 type TravelOptions struct {
 	SubpathMaxLength  map[string]int // Map of method verb to subpath length limit for requests of that type
 	StrictTraversal   bool           // Obey Pyramid traversal semantics (do not enforce subpath limits, use handler names from path only)

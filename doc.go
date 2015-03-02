@@ -1,5 +1,4 @@
 /*
-
 Travel is an HTTP router that provides routing similar to the "traversal" system from the Pyramid web framework in Python.
 
 For details on the original traversal system please read: http://docs.pylonsproject.org/docs/pyramid/en/latest/narr/traversal.html
@@ -92,5 +91,6 @@ SubpathMaxLength is a map of method verb (all caps) to an integer representing t
 length is less than or equal to this limit, the request succeeds and the handler is executed per traversal semantics. If the subpath
 exceeds this limit a 404 Not Found is returned. Traditional Pyramid traversal has an unlimited subpath max length. That can be emulated by setting SubpathMaxLength[verb] to
 UnlimitedSubpath.
-
 */
+
+package travel

@@ -31,7 +31,7 @@ Usage:
 			"DELETE": 0,
 		},
 	}
-	r, err := travel.NewRouter(getRootTree, hm, errorHandler, &options)
+	r, err := travel.NewRouter(getRootTree, handlerMap, errorHandler, &options)
 	if err != nil {
 		log.Fatalf("Error creating Travel router: %v\n", err)
 	}

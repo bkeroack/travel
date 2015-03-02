@@ -40,7 +40,7 @@ Usage:
 
 Travel provides additional options to modify normal traversal semantincs:
 
-Strict vs. Permissive
+Strict vs Permissive
 
 "Strict" means to follow Pyramid traversal semantics -- handler name can only be "" (empty string) or the latest token in path when
 root tree lookup failed (everything beyond that is the subpath). Note that this can be modified with handler name overrides in the

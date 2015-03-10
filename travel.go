@@ -71,43 +71,6 @@ func NewRouter(rtf RootTreeFunc, hm HandlerMap, eh TravelErrorHandler, o *Travel
 	}, nil
 }
 
-// Fetch the root tree, re-run traversal and update Context fields.
-func (c *Context) Refresh() error {
-	rt, err := c.rtf()
-	if err != nil {
-		return RootTreeError(err)
-	}
-
-	var spl int
-	if v, ok := c.options.SubpathMaxLength[c.req.Method]; ok {
-		spl = v
-	} else {
-		spl = 0
-	}
-
-	tr, err := doTraversal(rt, c.Path, spl, c.options.StrictTraversal)
-	if err != nil {
-		return err
-	}
-	c.CurrentObj = tr.co
-	c.RootTree = rt
-	c.Subpath = tr.sp
-	return nil
-}
-
-// Walk back n nodes in tokenized path, return root tree object at that node.
-func (c *Context) WalkBack(n uint) (map[string]interface{}, error) {
-	new_path := c.Path[0 : len(c.Path)-int(n)]
-	if len(new_path) == 0 {
-		new_path = []string{""}
-	}
-	tr, err := doTraversal(c.RootTree, new_path, 0, c.options.StrictTraversal)
-	if err != nil {
-		return map[string]interface{}{}, err
-	}
-	return tr.co.(map[string]interface{}), nil
-}
-
 func doTraversal(rt map[string]interface{}, tokens []string, spl int, strict bool) (TraversalResult, TraversalError) {
 	var cur_obj interface{}
 	var ok bool
@@ -185,6 +148,43 @@ func doTraversal(rt map[string]interface{}, tokens []string, spl int, strict boo
 		}
 	}
 	return TraversalResult{}, InternalError("received empty path")
+}
+
+// Fetch the root tree, re-run traversal and update Context fields.
+func (c *Context) Refresh() TraversalError {
+	rt, err := c.rtf()
+	if err != nil {
+		return RootTreeError(err)
+	}
+
+	var spl int
+	if v, ok := c.options.SubpathMaxLength[c.req.Method]; ok {
+		spl = v
+	} else {
+		spl = 0
+	}
+
+	tr, err := doTraversal(rt, c.Path, spl, c.options.StrictTraversal)
+	if err != nil {
+		return err.(TraversalError)
+	}
+	c.CurrentObj = tr.co
+	c.RootTree = rt
+	c.Subpath = tr.sp
+	return nil
+}
+
+// Walk back n nodes in tokenized path, return root tree object at that node.
+func (c *Context) WalkBack(n uint) (map[string]interface{}, error) {
+	new_path := c.Path[0 : len(c.Path)-int(n)]
+	if len(new_path) == 0 {
+		new_path = []string{""}
+	}
+	tr, err := doTraversal(c.RootTree, new_path, 0, c.options.StrictTraversal)
+	if err != nil {
+		return map[string]interface{}{}, err
+	}
+	return tr.co.(map[string]interface{}), nil
 }
 
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {

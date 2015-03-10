@@ -66,21 +66,21 @@ func NotFoundError(r []string) TraversalError {
 	}
 }
 
-func UnknownHandlerError(r []string) TraversalUnknownHandlerError {
+func UnknownHandlerError(r []string) TraversalError {
 	return TraversalUnknownHandlerError{
 		path: r,
 		code: http.StatusNotImplemented,
 	}
 }
 
-func RootTreeError(err error) TraversalRootTreeError {
+func RootTreeError(err error) TraversalError {
 	return TraversalRootTreeError{
 		err:  err,
 		code: http.StatusInternalServerError,
 	}
 }
 
-func InternalError(m string) TraversalInternalError {
+func InternalError(m string) TraversalError {
 	return TraversalInternalError{
 		msg:  m,
 		code: http.StatusInternalServerError,

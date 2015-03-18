@@ -39,7 +39,6 @@ type Router struct {
 	rtf     RootTreeFunc
 	hm      HandlerMap
 	eh      TravelErrorHandler
-	tokens  []string
 	options *TravelOptions
 }
 
@@ -71,7 +70,7 @@ func NewRouter(rtf RootTreeFunc, hm HandlerMap, eh TravelErrorHandler, o *Travel
 	}, nil
 }
 
-func doTraversal(rt map[string]interface{}, tokens []string, spl int, strict bool) (TraversalResult, TraversalError) {
+func doTraversal(rt map[string]interface{}, tokens []string, spl int, strict bool) (*TraversalResult, TraversalError) {
 	var cur_obj interface{}
 	var ok bool
 
@@ -98,20 +97,20 @@ func doTraversal(rt map[string]interface{}, tokens []string, spl int, strict boo
 					case map[string]interface{}:
 						if hn, ok := co2[h_token]; ok {
 							hns := hn.(string)
-							return TraversalResult{ // last token, token lookup success, cur_obj is map, explicit handler found
+							return &TraversalResult{ // last token, token lookup success, cur_obj is map, explicit handler found
 								h:  hns,
 								co: co2,
 								sp: []string{},
 							}, nil
 						} else {
-							return TraversalResult{ // last token, token lookup success, cur_obj is map, no handler key
+							return &TraversalResult{ // last token, token lookup success, cur_obj is map, no handler key
 								h:  get_hn(t, true),
 								co: co2,
 								sp: []string{},
 							}, nil
 						}
 					default:
-						return TraversalResult{ // last token, token lookup success, cur_obj is not a map
+						return &TraversalResult{ // last token, token lookup success, cur_obj is not a map
 							h:  get_hn(t, true),
 							co: cur_obj,
 							sp: []string{},
@@ -122,24 +121,24 @@ func doTraversal(rt map[string]interface{}, tokens []string, spl int, strict boo
 				// not found
 				sp := tokens[i+1 : len(tokens)]
 				if len(sp) <= spl || len(tokens) == 1 || spl == UnlimitedSubpath {
-					return TraversalResult{ // token not found, subpath_limit not exceeded
+					return &TraversalResult{ // token not found, subpath_limit not exceeded
 						h:  get_hn(t, false),
 						co: co,
 						sp: sp,
 					}, nil
 				} else {
-					return TraversalResult{}, NotFoundError(tokens) // token not found, subpath limit exceeded
+					return &TraversalResult{}, NotFoundError(tokens) // token not found, subpath limit exceeded
 				}
 			}
 		default:
 			if i == len(tokens)-1 {
-				return TraversalResult{ // last token, current object is not a map
+				return &TraversalResult{ // last token, current object is not a map
 					h:  "",
 					co: cur_obj,
 					sp: []string{},
 				}, nil
 			} else {
-				return TraversalResult{ // tokens remaining but cur_obj is not a map so traversal cannot continue
+				return &TraversalResult{ // tokens remaining but cur_obj is not a map so traversal cannot continue
 					h:  get_hn(t, false),
 					co: cur_obj,
 					sp: tokens[i : len(tokens)-1],
@@ -147,7 +146,7 @@ func doTraversal(rt map[string]interface{}, tokens []string, spl int, strict boo
 			}
 		}
 	}
-	return TraversalResult{}, InternalError("received empty path")
+	return &TraversalResult{}, InternalError("received empty path")
 }
 
 // Fetch the root tree, re-run traversal and update Context fields.
@@ -188,6 +187,7 @@ func (c *Context) WalkBack(n uint) (map[string]interface{}, error) {
 }
 
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+
 	if req.URL.Path[0] == '/' {
 		req.URL.Path = strings.TrimLeft(req.URL.Path, "/")
 	}
@@ -196,7 +196,9 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			req.URL.Path = strings.TrimRight(req.URL.Path, "/")
 		}
 	}
-	r.tokens = strings.Split(req.URL.Path, "/")
+
+	c := &Context{}
+	c.Path = strings.Split(req.URL.Path, "/")
 
 	rt, err := r.rtf()
 	if err != nil {
@@ -204,16 +206,13 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	buildContext := func(tr TraversalResult) Context {
-		return Context{
-			RootTree:   rt,
-			CurrentObj: tr.co,
-			Path:       r.tokens,
-			Subpath:    tr.sp,
-			options:    r.options,
-			rtf:        r.rtf,
-			req:        req,
-		}
+	buildContext := func(tr *TraversalResult) {
+		c.RootTree = rt
+		c.CurrentObj = tr.co
+		c.Subpath = tr.sp
+		c.options = r.options
+		c.rtf = r.rtf
+		c.req = req
 	}
 
 	var spl int
@@ -223,22 +222,22 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		spl = 0
 	}
 
-	tr, terr := doTraversal(rt, r.tokens, spl, r.options.StrictTraversal)
+	tr, terr := doTraversal(rt, c.Path, spl, r.options.StrictTraversal)
 	if terr != nil {
 		r.eh(w, req, terr)
 		return
 	}
 	if h, ok := r.hm[tr.h]; ok {
-		c := buildContext(tr)
-		h(w, req, &c)
+		buildContext(tr)
+		h(w, req, c)
 		return
 	} else {
 		if r.options.UseDefaultHandler {
 			h := r.hm[r.options.DefaultHandler] // guaranteed to exist by NewRouter
-			c := buildContext(tr)
-			h(w, req, &c)
+			buildContext(tr)
+			h(w, req, c)
 			return
 		}
-		r.eh(w, req, UnknownHandlerError(r.tokens))
+		r.eh(w, req, UnknownHandlerError(c.Path))
 	}
 }

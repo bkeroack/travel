@@ -4,11 +4,11 @@ Traversal-like HTTP Routing in Go
 * For usage/details: https://godoc.org/github.com/bkeroack/travel
 * For example usage: https://github.com/bkeroack/travel-examples
 
-Travel is an HTTP router that provides routing similar to the "traversal" system from the Pyramid web framework in Python.
+Travel is an HTTP router that provides dynamic routing functionality similar to the "traversal" system from the Pyramid web framework in Python.
 
-For details on the original traversal system please read: http://docs.pylonsproject.org/docs/pyramid/en/latest/narr/traversal.html
+For details on the original traversal system see: http://docs.pylonsproject.org/docs/pyramid/en/latest/narr/traversal.html
 
-Simply put, traversal allows you to dynamically route HTTP requests by providing a nested map[string]interface{} object called the
+Simply put, traversal allows you to route HTTP requests by providing a nested map[string]interface{} object called the
 "root tree" (Pyramid calls this the *resource tree*). Request URLs are tokenized and recursive lookup is performed on the root
 tree object.
 
@@ -26,11 +26,7 @@ Then the equivalent of the following lookup is performed:
    root_tree["foo"]["bar"]["baz"]["123"]
 ```
 
-The object that results from this lookup is the "current object" (Pyramid calls this the "context"--travel provides a context object that contains the current object).
+The object that results from this lookup is the "current object". If traversal succeeds, a named handler is then invoked (looked up via the "handler map" provided to the router), otherwise the router returns an appropriate error (404, etc).
 
-How this maps to handlers (in Pyramid terminology: "views") depends upon the options passed when creating the router. Under traditional
-traversal, if the lookup fully succeeded (no missing key errors), the name of the handler would be the empty string ("") which is considered
-the default handler. If the lookup failed at any point, the handler name would be the token that failed and any remainder of the URL would
-be passed to the handler as the "subpath" (see original traversal documentation linked above for more details).
-
-Travel provides several ways to modify these semantics. For example, travel allows handler name overrides within the root tree object, limitations on subpath length and more. For details, see godoc documentation.
+For details on how lookup translates to handler names, see the godoc documentation linked above. Travel allows users to emulate traditional
+traversal mechanics while also providing several ways to modify behavior, such as handler name overrides within the root tree object and limitations on subpath length.

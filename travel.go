@@ -119,7 +119,7 @@ func doTraversal(rt map[string]interface{}, tokens []string, spl int, strict boo
 				} // next iteration
 			} else {
 				// not found
-				sp := tokens[i+1 : len(tokens)]
+				sp := tokens[i:len(tokens)]
 				if len(sp) <= spl || len(tokens) == 1 || spl == UnlimitedSubpath {
 					return &TraversalResult{ // token not found, subpath_limit not exceeded
 						h:  get_hn(t, false),

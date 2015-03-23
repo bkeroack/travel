@@ -9,8 +9,7 @@ Travel is an HTTP router that provides dynamic routing functionality similar to 
 For details on the original traversal system see: http://docs.pylonsproject.org/docs/pyramid/en/latest/narr/traversal.html
 
 Simply put, traversal allows you to route HTTP requests by providing a nested ``map[string]interface{}`` object called the
-"root tree" (Pyramid calls this the *resource tree*). Request URLs are tokenized and recursive lookup is performed on the root
-tree object.
+"root tree". Request URLs are tokenized and recursive lookup is performed on the root tree object.
 
 Example:
 
